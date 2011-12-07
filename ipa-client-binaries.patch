@@ -1,0 +1,24 @@
+The location of the kerberos binaries has moved from /usr/kerberos/bin to
+/usr/bin
+
+diff -u --recursive freeipa-2.0.orig/ipa-client/ipa-install/ipa-client-install freeipa-2.0/ipa-client/ipa-install/ipa-client-install
+--- freeipa-2.0.orig/ipa-client/ipa-install/ipa-client-install	2010-05-06 15:05:21.000000000 -0400
++++ freeipa-2.0/ipa-client/ipa-install/ipa-client-install	2010-05-06 15:29:24.000000000 -0400
+@@ -557,7 +557,7 @@
+                         else:
+                             stdin = sys.stdin.readline()
+ 
+-                (stderr, stdout, returncode) = run(["/usr/kerberos/bin/kinit", principal], raiseonerr=False, stdin=stdin)
++                (stderr, stdout, returncode) = run(["/usr/bin/kinit", principal], raiseonerr=False, stdin=stdin)
+                 print ""
+                 if returncode != 0:
+                     print stdout
+@@ -590,7 +590,7 @@
+ 
+         finally:
+             if options.principal is not None:
+-                (stderr, stdout, returncode) = run(["/usr/kerberos/bin/kdestroy"], raiseonerr=False)
++                (stderr, stdout, returncode) = run(["/usr/bin/kdestroy"], raiseonerr=False)
+             del os.environ['KRB5_CONFIG']
+             os.remove(krb_name)
+             os.remove(krb_name + ".ipabkp")

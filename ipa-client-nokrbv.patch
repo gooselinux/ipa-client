@@ -1,0 +1,89 @@
+Remove Requires on separate package python-krbV in client
+
+We need the configured kerberos realm so we can clean up /etc/krb5.keytab.
+We have this already in /etc/ipa/default.conf so use that instead of
+requiring a whole other python package to do it.
+
+diff -u --recursive freeipa-1.9.0.pre3.orig/ipa-client/ipa-install/ipa-client-install freeipa-1.9.0.pre3/ipa-client/ipa-install/ipa-client-install
+--- freeipa-1.9.0.pre3.orig/ipa-client/ipa-install/ipa-client-install	2010-06-16 14:20:19.000000000 -0400
++++ freeipa-1.9.0.pre3/ipa-client/ipa-install/ipa-client-install	2010-06-16 14:20:53.000000000 -0400
+@@ -27,7 +27,6 @@
+     sys.path.insert(0, "%s/%s" % (get_python_lib(), "ipaclient"))
+ 
+     import os
+-    import krbV
+     import socket
+     import logging
+     import tempfile
+@@ -39,6 +38,7 @@
+     from ipapython.ipautil import run, user_input, CalledProcessError
+     from ipapython import sysrestore
+     from ipapython import version
++    from ConfigParser import RawConfigParser
+ except ImportError:
+     print >> sys.stderr, """\
+ There was a problem importing one of the required Python modules. The
+@@ -207,8 +207,12 @@
+ 
+     print "Removing Kerberos service principals from /etc/krb5.keytab"
+     try:
+-        ctx = krbV.default_context()
+-        run(["/usr/sbin/ipa-rmkeytab", "-k", "/etc/krb5.keytab", "-r", ctx.default_realm])
++        parser = RawConfigParser()
++        fp = open('/etc/ipa/default.conf', 'r')
++        parser.readfp(fp)
++        fp.close()
++        realm = parser.get('global', 'realm')
++        run(["/usr/sbin/ipa-rmkeytab", "-k", "/etc/krb5.keytab", "-r", realm])
+     except:
+         print "Failed to clean up /etc/krb5.keytab"
+ 
+diff -u --recursive freeipa-1.9.0.pre3.orig/ipalib/util.py freeipa-1.9.0.pre3/ipalib/util.py
+--- freeipa-1.9.0.pre3.orig/ipalib/util.py	2010-05-07 13:26:30.000000000 -0400
++++ freeipa-1.9.0.pre3/ipalib/util.py	2010-06-16 14:20:53.000000000 -0400
+@@ -25,18 +25,10 @@
+ import imp
+ import logging
+ import time
+-import krbV
+ import socket
+ from ipalib import errors
+ 
+ 
+-def get_current_principal():
+-    try:
+-        return unicode(krbV.default_context().default_ccache().principal().name)
+-    except krbV.Krb5Error:
+-        #TODO: do a kinit?
+-        raise errors.CCacheError()
+-
+ def get_fqdn():
+     fqdn = ""
+     try:
+diff -u --recursive freeipa-1.9.0.pre3.orig/ipapython/config.py freeipa-1.9.0.pre3/ipapython/config.py
+--- freeipa-1.9.0.pre3.orig/ipapython/config.py	2010-05-07 13:26:30.000000000 -0400
++++ freeipa-1.9.0.pre3/ipapython/config.py	2010-06-16 14:23:19.000000000 -0400
+@@ -20,7 +20,6 @@
+ import ConfigParser
+ from optparse import OptionParser, IndentedHelpFormatter
+ 
+-import krbV
+ import socket
+ import ipapython.dnsclient
+ import re
+@@ -113,10 +112,11 @@
+     rl = 0
+     try:
+         if not config.default_realm:
+-            krbctx = krbV.default_context()
+-            config.default_realm = krbctx.default_realm
+-            if not config.default_realm:
+-                return False
++            """
++            Removing detection of kerberos realm to eliminate need for
++            python-krbV package. This isn't called by client installer.
++            """
++            return False
+ 
+         if not config.default_domain:
+             #try once with REALM -> domain

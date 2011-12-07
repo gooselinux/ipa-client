@@ -1,0 +1,25 @@
+Make sure our local ipapython path comes first on the chance that the
+ipa-python package is installed.
+
+diff -u --recursive freeipa-1.9.0_alpha3.orig/ipa-client/ipa-install/ipa-client-install freeipa-1.9.0_alpha3/ipa-client/ipa-install/ipa-client-install
+--- freeipa-1.9.0_alpha3.orig/ipa-client/ipa-install/ipa-client-install	2010-05-06 16:40:51.000000000 -0400
++++ freeipa-1.9.0_alpha3/ipa-client/ipa-install/ipa-client-install	2010-05-06 18:10:22.000000000 -0400
+@@ -21,6 +21,10 @@
+ 
+ try:
+     import sys
++    import SSSDConfig
++    # so we use our own copy of ipapython
++    from distutils.sysconfig import get_python_lib
++    sys.path.insert(0, "%s/%s" % (get_python_lib(), "ipaclient"))
+ 
+     import os
+     import krbV
+@@ -35,7 +39,6 @@
+     from ipapython.ipautil import run, user_input, CalledProcessError
+     from ipapython import sysrestore
+     from ipapython import version
+-    import SSSDConfig
+ except ImportError:
+     print >> sys.stderr, """\
+ There was a problem importing one of the required Python modules. The

@@ -1,0 +1,106 @@
+Make sure we update all ldap-based configuration files.
+
+diff -u --recursive freeipa-1.9.0.pre3.orig/ipa-client/ipa-install/ipa-client-install freeipa-1.9.0.pre3/ipa-client/ipa-install/ipa-client-install
+--- freeipa-1.9.0.pre3.orig/ipa-client/ipa-install/ipa-client-install	2010-06-16 14:46:14.000000000 -0400
++++ freeipa-1.9.0.pre3/ipa-client/ipa-install/ipa-client-install	2010-06-16 14:45:42.000000000 -0400
+@@ -35,7 +35,7 @@
+     import ipaclient.ipadiscovery
+     import ipaclient.ipachangeconf
+     import ipaclient.ntpconf
+-    from ipapython.ipautil import run, user_input, CalledProcessError
++    from ipapython.ipautil import run, user_input, CalledProcessError, file_exists
+     from ipapython import sysrestore
+     from ipapython import version
+     from ConfigParser import RawConfigParser
+@@ -306,12 +306,51 @@
+         opts.append({'name':'nss_srv_domain', 'type':'option', 'value':cli_domain})
+ 
+     opts.append({'name':'empty', 'type':'empty'})
+-    try:
+-        fstore.backup_file("/etc/ldap.conf")
+-        ldapconf.newConf("/etc/ldap.conf", opts)
+-    except Exception, e:
+-        print "Creation of /etc/ldap.conf: " + str(e)
+-        return 1
++
++    # Depending on the release and distribution this may exist in any 
++    # number of different file names, update what we find
++    for filename in ['/etc/ldap.conf', '/etc/nss_ldap.conf', '/etc/libnss-ldap.conf', '/etc/pam_ldap.conf']:
++        if file_exists(filename):
++            try:
++                fstore.backup_file(filename)
++                ldapconf.newConf(filename, opts)
++            except Exception, e:
++                print "Creation of %s: %s" % (filename, str(e))
++                return 1
++
++    return 0
++
++def configure_nslcd_conf(fstore, cli_basedn, cli_realm, cli_domain, cli_server, dnsok, options):
++    nslcdconf = ipaclient.ipachangeconf.IPAChangeConf("IPA Installer")
++    nslcdconf.setOptionAssignment(" ")
++
++    opts = [{'name':'comment', 'type':'comment', 'value':'File modified by ipa-client-install'},
++            {'name':'empty', 'type':'empty'},
++            {'name':'ldap_version', 'type':'option', 'value':'3'},
++            {'name':'base', 'type':'option', 'value':cli_basedn},
++            {'name':'empty', 'type':'empty'},
++            {'name':'base passwd', 'type':'option', 'value':'cn=users,cn=accounts,'+cli_basedn},
++            {'name':'base group', 'type':'option', 'value':'cn=groups,cn=accounts,'+cli_basedn},
++            {'name':'map group', 'type':'option', 'value':'uniqueMember member'},
++            {'name':'timelimit', 'type':'option', 'value':'15'},
++            {'name':'empty', 'type':'empty'}]
++    if not dnsok or options.force or options.on_master:
++        if options.on_master:
++            opts.append({'name':'uri', 'type':'option', 'value':'ldap://localhost'})
++        else:
++            opts.append({'name':'uri', 'type':'option', 'value':'ldap://'+cli_server})
++    else:
++        opts.append({'name':'uri', 'type':'option', 'value':'DNS'})
++
++    opts.append({'name':'empty', 'type':'empty'})
++
++    if file_exists('/etc/nslcd.conf'):
++        try:
++            fstore.backup_file('/etc/nslcd.conf')
++            nslcdconf.newConf('/etc/nslcd.conf', opts)
++        except Exception, e:
++            print "Creation of %s: %s" % ('/etc/nslcd.conf', str(e))
++            return 1
+ 
+     return 0
+ 
+@@ -320,6 +359,9 @@
+     DNS Discovery didn't return a valid IPA server, hardcode a value into
+     the file instead.
+     """
++    if not file_exists('/etc/ldap.conf'):
++        return
++
+     ldapconf = ipaclient.ipachangeconf.IPAChangeConf("IPA Installer")
+     ldapconf.setOptionAssignment(" ")
+ 
+@@ -542,6 +584,9 @@
+         if options.principal is None and options.password is None and options.prompt_password is False:
+             options.principal = user_input("Principal", allow_empty=False)
+ 
++    # Get the CA certificate
++    run(["/usr/bin/wget", "-O", "/etc/ipa/ca.crt", "http://%s/ipa/config/ca.crt" % cli_server])
++
+     if not options.on_master:
+         # First test out the kerberos configuration
+         try:
+@@ -622,10 +667,10 @@
+     else:
+         if configure_ldap_conf(fstore, cli_basedn, cli_realm, cli_domain, cli_server, dnsok, options):
+             return 1
+-        print "Configured /etc/ldap.conf"
++        if configure_nslcd_conf(fstore, cli_basedn, cli_realm, cli_domain, cli_server, dnsok, options):
++            return 1
++        print "Configured LDAP"
+ 
+-    # Get the CA certificate
+-    run(["/usr/bin/wget", "-O", "/etc/ipa/ca.crt", "http://%s/ipa/config/ca.crt" % cli_server])
+     # Add the CA to the default NSS database and trust it
+     run(["/usr/bin/certutil", "-A", "-d", "/etc/pki/nssdb", "-n", "IPA CA", "-t", "CT,C,C", "-a", "-i", "/etc/ipa/ca.crt"])
+ 
